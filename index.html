@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+
+    <!-- ── PWA / iPhone install ─────────────────────────────────── -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="FinFlow" />
+    <meta name="theme-color" content="#0d1117" />
+    <meta name="application-name" content="FinFlow" />
+
+    <!-- ── Icons ─────────────────────────────────────────────────── -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/finflow/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/finflow/favicon-16.png" />
+    <link rel="apple-touch-icon" href="/finflow/apple-touch-icon.png" />
+    <link rel="manifest" href="/finflow/manifest.json" />
+
+    <title>FinFlow</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+
+    <!-- ── Service Worker registration ───────────────────────────── -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker
+            .register('/finflow/sw.js', { scope: '/finflow/' })
+            .then(function (reg) {
+              console.log('FinFlow SW registered:', reg.scope);
+            })
+            .catch(function (err) {
+              console.warn('SW registration failed:', err);
+            });
+        });
+      }
+    </script>
+  </body>
+</html>
