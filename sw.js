@@ -1,6 +1,6 @@
 // sw.js — FinFlow service worker
 // Firebase API calls must NEVER be served from cache: they need live auth tokens.
-const CACHE = 'finflow-v2';
+const CACHE = 'finflow-v3';
 
 const FIREBASE_HOSTS = [
   'firestore.googleapis.com',
@@ -57,21 +57,30 @@ self.addEventListener('fetch', event => {
   if (url.origin !== self.location.origin) return;
 
   // 3. HTML navigation — network first, fall back to cached shell.
+  //
+  // IMPORTANT: .catch() only fires on network errors, NOT on 4xx responses.
+  // When authDomain = "thicosemteco.github.io", Google redirects the user to
+  //   https://thicosemteco.github.io/__/auth/handler?code=...&state=...
+  // GitHub Pages has no such file — it returns HTTP 404 (a valid response).
+  // Without the explicit non-200 fallback below, the SW would return that 404
+  // to the browser, Firebase would never see the auth result, and the user
+  // would land back on the login screen with no error.
+  // By serving index.html for any non-200 navigate, the app loads at
+  // /__/auth/handler?... and Firebase's redirectResultPromise processes the
+  // OAuth params, completing the sign-in.
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
         .then(res => {
-          // Clone SYNCHRONOUSLY, before any async work.
-          // Calling res.clone() inside caches.open().then(...) is too late —
-          // the browser may have already started reading res.body by then,
-          // causing "Response body is already used" (exactly what happened on
-          // the Google Sign-In redirect return at the old line 63).
-          // Also skip caching redirects / opaque responses (OAuth callbacks).
           if (res.ok && res.status === 200 && res.type === 'basic') {
+            // Cache successful responses (clone synchronously before any async work).
             const clone = res.clone();
             caches.open(CACHE).then(c => c.put(request, clone)).catch(() => {});
+            return res;
           }
-          return res;
+          // Non-200 (including 404 for /__/auth/handler on GitHub Pages):
+          // serve the app shell so Firebase can process the auth result.
+          return caches.match('/finflow/index.html').then(cached => cached || res);
         })
         .catch(() => caches.match('/finflow/index.html'))
     );
