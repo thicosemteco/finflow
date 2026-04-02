@@ -1,6 +1,24 @@
-const CACHE = 'finflow-v1';
+// sw.js — FinFlow service worker
+// Firebase API calls must NEVER be served from cache: they need live auth tokens.
+const CACHE = 'finflow-v2';
 
-// On install: cache the app shell
+const FIREBASE_HOSTS = [
+  'firestore.googleapis.com',
+  'identitytoolkit.googleapis.com',
+  'securetoken.googleapis.com',
+  'firebase.googleapis.com',
+  'firebaseinstallations.googleapis.com',
+  'firebaselogging.googleapis.com',
+  'www.googleapis.com',
+  'accounts.google.com',
+  'appleid.apple.com',
+];
+
+function isFirebaseRequest(url) {
+  return FIREBASE_HOSTS.some(host => url.hostname.includes(host));
+}
+
+// Install — pre-cache the app shell
 self.addEventListener('install', event => {
   self.skipWaiting();
   event.waitUntil(
@@ -16,48 +34,48 @@ self.addEventListener('install', event => {
   );
 });
 
-// On activate: remove old caches
+// Activate — remove old caches
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
 });
 
-// Fetch strategy:
-// - Navigation (HTML): network first, fall back to cached /finflow/index.html
-// - Assets (JS/CSS/images): cache first, update cache in background
+// Fetch
 self.addEventListener('fetch', event => {
   const { request } = event;
+  if (request.method !== 'GET') return;
+
   const url = new URL(request.url);
 
-  // Skip non-GET and cross-origin
-  if (request.method !== 'GET' || url.origin !== self.location.origin) return;
+  // 1. Always pass Firebase requests straight to the network — never cache them.
+  if (isFirebaseRequest(url)) return;
 
+  // 2. Cross-origin non-Firebase (CDN fonts, etc.) — network only, no cache.
+  if (url.origin !== self.location.origin) return;
+
+  // 3. HTML navigation — network first, fall back to cached shell.
   if (request.mode === 'navigate') {
-    // Navigation: try network, fall back to shell
     event.respondWith(
       fetch(request)
-        .then(res => {
-          const clone = res.clone();
-          caches.open(CACHE).then(c => c.put(request, clone));
-          return res;
-        })
+        .then(res => { caches.open(CACHE).then(c => c.put(request, res.clone())); return res; })
         .catch(() => caches.match('/finflow/index.html'))
     );
-  } else {
-    // Assets: serve from cache instantly, refresh cache in background
-    event.respondWith(
-      caches.open(CACHE).then(cache =>
-        cache.match(request).then(cached => {
-          const networkFetch = fetch(request).then(res => {
-            cache.put(request, res.clone());
-            return res;
-          }).catch(() => {});
-          return cached || networkFetch;
-        })
-      )
-    );
+    return;
   }
+
+  // 4. Static assets (JS/CSS/images) — cache first, refresh in background.
+  event.respondWith(
+    caches.open(CACHE).then(cache =>
+      cache.match(request).then(cached => {
+        const fresh = fetch(request).then(res => {
+          cache.put(request, res.clone());
+          return res;
+        }).catch(() => {});
+        return cached || fresh;
+      })
+    )
+  );
 });
