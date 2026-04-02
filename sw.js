@@ -60,7 +60,19 @@ self.addEventListener('fetch', event => {
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
-        .then(res => { caches.open(CACHE).then(c => c.put(request, res.clone())); return res; })
+        .then(res => {
+          // Clone SYNCHRONOUSLY, before any async work.
+          // Calling res.clone() inside caches.open().then(...) is too late —
+          // the browser may have already started reading res.body by then,
+          // causing "Response body is already used" (exactly what happened on
+          // the Google Sign-In redirect return at the old line 63).
+          // Also skip caching redirects / opaque responses (OAuth callbacks).
+          if (res.ok && res.status === 200 && res.type === 'basic') {
+            const clone = res.clone();
+            caches.open(CACHE).then(c => c.put(request, clone)).catch(() => {});
+          }
+          return res;
+        })
         .catch(() => caches.match('/finflow/index.html'))
     );
     return;
@@ -71,9 +83,13 @@ self.addEventListener('fetch', event => {
     caches.open(CACHE).then(cache =>
       cache.match(request).then(cached => {
         const fresh = fetch(request).then(res => {
-          cache.put(request, res.clone());
+          // Same rule: clone synchronously, only cache clean same-origin responses.
+          if (res.ok && res.type === 'basic') {
+            const clone = res.clone();
+            cache.put(request, clone).catch(() => {});
+          }
           return res;
-        }).catch(() => {});
+        }).catch(() => null);
         return cached || fresh;
       })
     )
