@@ -2,6 +2,27 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- ── Google OAuth token capture ───────────────────────────────────────
+         This inline script MUST run before any module import (including
+         Firebase). Firebase Auth initialises synchronously on import and
+         reads/clears URL hash parameters named "state" and "id_token" — the
+         same names Google uses for the OpenID Connect implicit response.
+         By capturing and stashing the token here we guarantee it survives. -->
+    <script>
+      (function () {
+        var h = window.location.hash.slice(1);
+        if (!h) return;
+        var p = new URLSearchParams(h);
+        var t = p.get('id_token');
+        var s = p.get('state');
+        if (t) {
+          sessionStorage.setItem('ff_t', t);
+          sessionStorage.setItem('ff_s', s || '');
+          // Remove the hash immediately so nothing else can consume it.
+          history.replaceState(null, '', window.location.pathname);
+        }
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 
     <!-- ── PWA / iPhone install ─────────────────────────────────── -->
@@ -19,10 +40,8 @@
     <link rel="manifest" href="/finflow/manifest.json" />
 
     <title>FinFlow</title>
-    <!-- Google Identity Services — used for Sign in with Google (no popup/redirect needed) -->
-    <script id="gsi-script" src="https://accounts.google.com/gsi/client" async defer></script>
-    <script type="module" crossorigin src="/finflow/assets/index-CmXjg8oh.js"></script>
-    <link rel="stylesheet" crossorigin href="/finflow/assets/index-C9P3My82.css">
+    <script type="module" crossorigin src="/finflow/assets/index-CLxqp_Kd.js"></script>
+    <link rel="stylesheet" crossorigin href="/finflow/assets/index-DmH-tMVI.css">
   </head>
   <body>
     <div id="root"></div>
