@@ -1,6 +1,6 @@
 // sw.js — FinFlow service worker
 // Firebase API calls must NEVER be served from cache: they need live auth tokens.
-const CACHE = 'finflow-v7';
+const CACHE = 'finflow-v8';
 
 const FIREBASE_HOSTS = [
   'firestore.googleapis.com',
