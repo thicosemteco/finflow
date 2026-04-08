@@ -1,11 +1,9 @@
 // FinFlow Service Worker
-// BUILD_TIMESTAMP is replaced at deploy time by the deploy script.
-// Changing this value forces all clients to discard the old cache and
-// fetch fresh assets — critical for correctness after every deploy.
-const BUILD_TIMESTAMP = '20260408093537';
+// BUILD_TIMESTAMP is replaced at deploy time by deploy.sh
+// A new timestamp on every deploy forces cache invalidation and reload.
+const BUILD_TIMESTAMP = '20260408094249';
 const CACHE = 'finflow-' + BUILD_TIMESTAMP;
 
-// Shell assets to pre-cache (no JS/CSS — those are network-first)
 const SHELL = [
   '/finflow/',
   '/finflow/index.html',
@@ -15,6 +13,8 @@ const SHELL = [
   '/finflow/icon-512.png',
 ];
 
+// Install: cache shell assets immediately, skip waiting so this SW
+// takes over right away without waiting for all tabs to close.
 self.addEventListener('install', event => {
   self.skipWaiting();
   event.waitUntil(
@@ -22,11 +22,21 @@ self.addEventListener('install', event => {
   );
 });
 
+// Activate: delete ALL old caches, then tell every open tab to reload
+// so they get the new JS bundle (not the one the old SW already served).
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(keys => Promise.all(
+        keys.filter(k => k !== CACHE).map(k => caches.delete(k))
+      ))
       .then(() => self.clients.claim())
+      .then(() => {
+        // Tell all open clients to reload so they get fresh JS
+        return self.clients.matchAll({ type: 'window' }).then(clients => {
+          clients.forEach(client => client.postMessage({ type: 'SW_UPDATED' }));
+        });
+      })
   );
 });
 
@@ -36,15 +46,16 @@ self.addEventListener('fetch', event => {
 
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
 
-  // JS and CSS: ALWAYS network-first, no stale code ever served
-  // Vite hashes these filenames so network-first is always safe
-  if (url.pathname.match(/\.(js|css|jsx|ts)(\?|$)/)) {
+  // JS and CSS: ALWAYS network-first so stale code is never served
+  if (url.pathname.match(/\.(js|css)(\?|$)/)) {
     event.respondWith(
-      fetch(request).then(res => {
-        const clone = res.clone();
-        caches.open(CACHE).then(c => c.put(request, clone));
-        return res;
-      }).catch(() => caches.match(request))
+      fetch(request)
+        .then(res => {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(request, clone));
+          return res;
+        })
+        .catch(() => caches.match(request))
     );
     return;
   }
@@ -63,14 +74,13 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Static assets (images, fonts, icons): cache-first
+  // Static assets (images, icons): cache-first
   event.respondWith(
     caches.open(CACHE).then(cache =>
       cache.match(request).then(cached => {
-        const networkFetch = fetch(request).then(res => {
-          cache.put(request, res.clone());
-          return res;
-        }).catch(() => {});
+        const networkFetch = fetch(request)
+          .then(res => { cache.put(request, res.clone()); return res; })
+          .catch(() => {});
         return cached || networkFetch;
       })
     )
