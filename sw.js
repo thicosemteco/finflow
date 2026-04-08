@@ -2,7 +2,7 @@
 // BUILD_TIMESTAMP is replaced at deploy time by the deploy script.
 // Changing this value forces all clients to discard the old cache and
 // fetch fresh assets — critical for correctness after every deploy.
-const BUILD_TIMESTAMP = '20260408092446';
+const BUILD_TIMESTAMP = '20260408093537';
 const CACHE = 'finflow-' + BUILD_TIMESTAMP;
 
 // Shell assets to pre-cache (no JS/CSS — those are network-first)
