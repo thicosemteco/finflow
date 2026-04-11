@@ -1,7 +1,7 @@
 // FinFlow Service Worker
 // BUILD_TIMESTAMP is replaced at deploy time by deploy.sh
 // A new timestamp on every deploy forces cache invalidation and reload.
-const BUILD_TIMESTAMP = '20260411130646';
+const BUILD_TIMESTAMP = '20260411131912';
 const CACHE = 'finflow-' + BUILD_TIMESTAMP;
 
 const SHELL = [
